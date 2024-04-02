@@ -1,5 +1,6 @@
-import { commons, config, hd, helpers, Indexer, RPC } from "@ckb-lumos/lumos";
+import {CellDep, commons, config, hd, helpers, Indexer, OutPoint, RPC, Script} from "@ckb-lumos/lumos";
 import { bytes } from "@ckb-lumos/lumos/codec";
+import {Bytes} from "@ckb-lumos/lumos/codec/blockchain";
 
 const CONFIG = config.predefined.AGGRON4;
 const PRIVATE_KEY = "0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee";
@@ -12,11 +13,23 @@ const fromLock = {
 const fromAddress = helpers.encodeToAddress(fromLock, { config: CONFIG });
 
 async function main() {
-  // always success binary in hex format
-  // the same with bytes.hexify(fs.readFileSync("always_success"))
-  const alwaysSuccess = bytes.bytify(
-    "0x7f454c460201010000000000000000000200f3000100000078000100000000004000000000000000980000000000000005000000400038000100400003000200010000000500000000000000000000000000010000000000000001000000000082000000000000008200000000000000001000000000000001459308d00573000000002e7368737472746162002e74657874000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000b000000010000000600000000000000780001000000000078000000000000000a0000000000000000000000000000000200000000000000000000000000000001000000030000000000000000000000000000000000000082000000000000001100000000000000000000000000000001000000000000000000000000000000"
-  );
+
+  // 0x44cb3bef0e4f8b498f95d89189c22cd442d0bfc3c665ff6ba0c5dd1f69777687 points to an always-success script.
+  const referencedTypeScript : Script= {
+    codeHash: "0x44cb3bef0e4f8b498f95d89189c22cd442d0bfc3c665ff6ba0c5dd1f69777687",
+    hashType: "type",
+    args: "0x"
+  };
+  const referencedCellDep: CellDep = {
+    depType: "code",
+    outPoint: {
+      txHash: '0xb48059392fb857a213208187ddab35cd94203dba66aae88dcd06f2744bf751c2',
+      index: "0x0",
+    },
+  };
+
+  // NOTE: It's a trick to preoccupy some capacity, which will be used to store our referencedTypeScript.
+  const alwaysSuccess = bytes.bytify(JSON.stringify(referencedTypeScript));
 
   const indexer = new Indexer("https://testnet.ckb.dev");
   const rpc = new RPC("https://testnet.ckb.dev");
@@ -28,6 +41,25 @@ async function main() {
     cellProvider: indexer,
     fromInfo: fromAddress,
   });
+
+  // Attach self-deployed script to the output's type field
+  txSkeleton = txSkeleton.update("cellDeps", (cellDeps) => {
+    cellDeps = cellDeps.push(referencedCellDep);
+    return cellDeps;
+  });
+  txSkeleton = txSkeleton.update("outputs", (outputs) => {
+    const output = outputs.get(0)!;
+
+    // Reference to the deployed code to make sure our deployed code can work.
+    output.cellOutput.type = referencedTypeScript;
+
+    // NOTE: Clean the unused data field, `scriptBinary`, which is used for preoccupying capacity.
+    output.data = "0x";
+
+    outputs.set(0, output);
+    return outputs;
+  });
+
 
   txSkeleton = commons.common.prepareSigningEntries(txSkeleton, { config: CONFIG });
 

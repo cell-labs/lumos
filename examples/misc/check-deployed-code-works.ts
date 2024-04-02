@@ -1,5 +1,5 @@
 import {CellDep, commons, config, hd, helpers, Indexer, OutPoint, RPC, Script} from "@ckb-lumos/lumos";
-import { bytes } from "@ckb-lumos/lumos/codec";
+import {bytes, hexify} from "@ckb-lumos/lumos/codec";
 import {Bytes} from "@ckb-lumos/lumos/codec/blockchain";
 
 const CONFIG = config.predefined.AGGRON4;
@@ -14,7 +14,6 @@ const fromAddress = helpers.encodeToAddress(fromLock, { config: CONFIG });
 
 async function main() {
 
-  // 0x44cb3bef0e4f8b498f95d89189c22cd442d0bfc3c665ff6ba0c5dd1f69777687 points to an always-success script.
   const referencedTypeScript : Script= {
     codeHash: "0x44cb3bef0e4f8b498f95d89189c22cd442d0bfc3c665ff6ba0c5dd1f69777687",
     hashType: "type",
@@ -29,7 +28,7 @@ async function main() {
   };
 
   // NOTE: It's a trick to preoccupy some capacity, which will be used to store our referencedTypeScript.
-  const alwaysSuccess = bytes.bytify(JSON.stringify(referencedTypeScript));
+  const alwaysSuccess = bytes.bytify('0x44cb3bef0e4f8b498f95d89189c22cd442d0bfc3c665ff6ba0c5dd1f69777687' + '01');
 
   const indexer = new Indexer("https://testnet.ckb.dev");
   const rpc = new RPC("https://testnet.ckb.dev");
@@ -67,7 +66,7 @@ async function main() {
   const signedTx = helpers.sealTransaction(txSkeleton, [signature]);
 
   const txHash = await rpc.sendTransaction(signedTx);
-  console.log(txHash, scriptConfig, typeId);
+  console.log(`txHash: ${txHash}`);
 }
 
 main();
